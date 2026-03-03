@@ -2,6 +2,18 @@
 
 `SpyGlass` is an SDR++ plugin that adds a focused side-panel spectrum and waterfall to SDR++.
 
+## Screenshots
+
+FLEX / narrow digital example:
+
+![SpyGlass FLEX view](assets/flex.png)
+
+FM broadcast example:
+
+![SpyGlass FM radio view](assets/fm-radio.png)
+
+## Features
+
 Current behavior:
 
 - Tracks the active SDR++ VFO, with `Radio` as the default fallback.
@@ -11,6 +23,14 @@ Current behavior:
 - Mirrors the main SDR++ display color map and scale behavior.
 - Keeps waterfall history aligned across retunes using per-row frequency mapping.
 - Left-clicking the SpyGlass spectrum or waterfall retunes the tracked VFO.
+
+## Install
+
+Copy `spyglass.dll` into your SDR++ `modules` folder and restart SDR++.
+
+Windows example:
+
+- `D:\SDR\sdrpp_windows_x64\modules\spyglass.dll`
 
 ## Build
 
@@ -25,10 +45,6 @@ D:\Codex\sdrpp-spyglass\build-spyglass.bat
 Expected result:
 
 - `D:\Codex\sdrpp-spyglass\build\spyglass.dll`
-
-Copy the resulting DLL into:
-
-- `D:\SDR\sdrpp_windows_x64\modules`
 
 ## Notes
 
