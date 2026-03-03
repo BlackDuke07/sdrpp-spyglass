@@ -32,6 +32,28 @@ Typical Windows example:
 
 - `sdrpp_windows_x64\modules\spyglass.dll`
 
+## Activate In SDR++
+
+After copying the DLL into the `modules` folder:
+
+1. Start or restart SDR++.
+2. Open the left-side menu.
+3. Look for `SpyGlass` in the module list.
+
+If it does not appear automatically:
+
+1. Open `Module Manager`.
+2. Add a new module instance.
+3. Set `Name` to `SpyGlass`.
+4. Set `Type` to `spyglass`.
+5. Enable the module.
+
+Once loaded:
+
+- SpyGlass follows the active SDR++ VFO.
+- Clicking inside the SpyGlass spectrum or waterfall retunes that VFO.
+- The displayed SpyGlass span is `3 x` the active VFO bandwidth.
+
 ## Build
 
 This project is currently built against an SDR++ source checkout for headers while linking against the installed SDR++ runtime on Windows.
