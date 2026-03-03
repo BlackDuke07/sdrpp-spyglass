@@ -28,26 +28,28 @@ Current behavior:
 
 Copy `spyglass.dll` into your SDR++ `modules` folder and restart SDR++.
 
-Windows example:
+Typical Windows example:
 
-- `D:\SDR\sdrpp_windows_x64\modules\spyglass.dll`
+- `sdrpp_windows_x64\modules\spyglass.dll`
 
 ## Build
 
-This project builds against the SDR++ source tree for headers while linking against the installed SDR++ runtime DLLs on Windows.
+This project is currently built against an SDR++ source checkout for headers while linking against the installed SDR++ runtime on Windows.
 
-This workspace uses:
+At a high level, the build process is:
 
 ```powershell
-D:\Codex\sdrpp-spyglass\build-spyglass.bat
+1. Generate import libraries for the SDR++ runtime DLLs you are targeting
+2. Build `spyglass.dll` against the matching SDR++ source tree
+3. Copy the resulting DLL into your SDR++ `modules` folder
 ```
 
 Expected result:
 
-- `D:\Codex\sdrpp-spyglass\build\spyglass.dll`
+- `spyglass.dll`
 
 ## Notes
 
-- This version is currently targeted at the local Windows SDR++ build used during development.
-- The repo in this workspace includes local shim headers for `fftw3` and `volk` because the installed SDR++ package is runtime-only.
+- This version is currently targeted at Windows SDR++ builds similar to the development environment used for the initial plugin work.
+- The repo includes local shim headers for `fftw3` and `volk` because many SDR++ Windows packages are runtime-only.
 - Compatibility with other SDR++ builds is not guaranteed without rebuilding against a matching version.
