@@ -72,6 +72,7 @@ Expected result:
 
 ## Notes
 
-- This version is currently targeted at Windows SDR++ builds similar to the development environment used for the initial plugin work.
+- Tested with the precompiled Windows x64 SDR++ `v1.2.1 nightly` release from `AlexandreRouma/SDRPlusPlus`.
+- This version is currently targeted at Windows SDR++ builds similar to that environment.
 - The repo includes local shim headers for `fftw3` and `volk` because many SDR++ Windows packages are runtime-only.
 - Compatibility with other SDR++ builds is not guaranteed without rebuilding against a matching version.
