@@ -834,8 +834,8 @@ namespace {
 SDRPP_MOD_INFO{
     /* Name:            */ "spyglass",
     /* Description:     */ "Zoomed FFT/waterfall inspector for SDR++",
-    /* Author:          */ "OpenAI Codex",
-    /* Version:         */ 0, 2, 0,
+    /* Author:          */ "BlackDuke07",
+    /* Version:         */ 0, 2, 1,
     /* Max instances    */ 1
 };
 
