@@ -2,7 +2,7 @@
 setlocal
 
 set "VSDEVCMD=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
-set "ROOT=D:\Codex\sdrpp-spyglass"
+set "ROOT=D:\GitHub\sdrpp-spyglass"
 set "SRC=%ROOT%\src\main.cpp"
 set "BUILD=%ROOT%\build"
 set "CORE_SRC=D:\SDRpp_source\core\src"
