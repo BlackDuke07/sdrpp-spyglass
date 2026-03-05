@@ -17,7 +17,7 @@ cl /std:c++17 /EHsc /LD ^
   /I"%CORE_SRC%" ^
   /I"%CORE_SRC%\imgui" ^
   /Fo"%BUILD%\\" ^
-  /Fe"%BUILD%\spyglass.dll" ^
+  /Fe"%BUILD%\spy_glass.dll" ^
   "%SRC%" ^
   /link /LIBPATH:"%BUILD%" sdrpp_core.lib fftw3f.lib opengl32.lib || exit /b 1
 

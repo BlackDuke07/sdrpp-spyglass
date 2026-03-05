@@ -82,7 +82,7 @@ namespace {
     public:
         explicit SpyGlassModule(std::string instanceName)
             : name(std::move(instanceName)),
-              hiddenTapName(name + "_spyglass_tap") {
+              hiddenTapName(name + "_spy_glass_tap") {
             rows_.assign(MAX_WATERFALL_ROWS, std::vector<float>(bufferedColumnCount_, -140.0f));
             rowCenterHz_.assign(MAX_WATERFALL_ROWS, 0.0);
             rowSpanHz_.assign(MAX_WATERFALL_ROWS, 0.0);
@@ -636,22 +636,22 @@ namespace {
                 ImGui::TextUnformatted("Waterfall History");
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderInt("##spyglass_history_rows", &rows, 100, 200);
+                ImGui::SliderInt("##spy_glass_history_rows", &rows, 100, 200);
                 ImGui::Checkbox("Freeze Waterfall", &freezeWaterfall_);
                 ImGui::PopItemWidth();
-                ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.25f, 1.0f), "No independent SpyGlass FFT frame available yet.");
+                ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.25f, 1.0f), "No independent Spy Glass FFT frame available yet.");
                 return;
             }
 
             ImGui::Text("Focus bandwidth: %.0f kHz", frame_.focusBandwidthHz / 1e3);
-            ImGui::Text("SpyGlass span: %.0f kHz", (frame_.rightHz - frame_.leftHz) / 1e3);
+            ImGui::Text("Spy Glass span: %.0f kHz", (frame_.rightHz - frame_.leftHz) / 1e3);
 
             int rows = visibleRows_;
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted("Waterfall History");
             ImGui::SameLine();
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::SliderInt("##spyglass_history_rows", &rows, 100, 200)) {
+            if (ImGui::SliderInt("##spy_glass_history_rows", &rows, 100, 200)) {
                 visibleRows_ = rows;
             }
 
@@ -702,7 +702,7 @@ namespace {
             drawVerticalMarker(drawList, origin, end, leftMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
             drawVerticalMarker(drawList, origin, end, rightMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
 
-            ImGui::InvisibleButton("##spyglass-spectrum", canvasSize);
+            ImGui::InvisibleButton("##spy_glass-spectrum", canvasSize);
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 tuneToMouse(origin, canvasSize.x);
             }
@@ -736,7 +736,7 @@ namespace {
             drawVerticalMarker(drawList, origin, end, leftMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
             drawVerticalMarker(drawList, origin, end, rightMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
 
-            ImGui::InvisibleButton("##spyglass-waterfall", canvasSize);
+            ImGui::InvisibleButton("##spy_glass-waterfall", canvasSize);
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 tuneToMouse(origin, canvasSize.x);
             }
@@ -832,10 +832,10 @@ namespace {
 }
 
 SDRPP_MOD_INFO{
-    /* Name:            */ "spyglass",
+    /* Name:            */ "spy_glass",
     /* Description:     */ "Zoomed FFT/waterfall inspector for SDR++",
     /* Author:          */ "BlackDuke07",
-    /* Version:         */ 0, 2, 1,
+    /* Version:         */ 0, 3, 0,
     /* Max instances    */ 1
 };
 

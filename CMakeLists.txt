@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sdrpp_spyglass LANGUAGES CXX)
+project(sdrpp_spy_glass LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,21 +14,21 @@ endif()
 
 set(SDRPP_CORE_SRC "${SDRPP_SOURCE_DIR}/core/src")
 
-add_library(spyglass SHARED
+add_library(spy_glass SHARED
     src/main.cpp
 )
 
-target_include_directories(spyglass PRIVATE
+target_include_directories(spy_glass PRIVATE
     "${SDRPP_CORE_SRC}"
 )
 
-target_link_directories(spyglass PRIVATE
+target_link_directories(spy_glass PRIVATE
     "${SDRPP_SOURCE_DIR}/build"
     "${SDRPP_SOURCE_DIR}/build/core"
 )
 
-target_link_libraries(spyglass PRIVATE sdrpp_core)
+target_link_libraries(spy_glass PRIVATE sdrpp_core)
 
-set_target_properties(spyglass PROPERTIES
-    OUTPUT_NAME "spyglass"
+set_target_properties(spy_glass PROPERTIES
+    OUTPUT_NAME "spy_glass"
 )
