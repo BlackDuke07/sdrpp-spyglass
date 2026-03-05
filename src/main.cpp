@@ -3,9 +3,8 @@
 #endif
 
 #include <algorithm>
-#include <array>
+#include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -107,6 +106,8 @@ namespace {
 
         void disable() override {
             enabled_ = false;
+            frame_.valid = false;
+            destroyTap();
         }
 
         bool isEnabled() override {
@@ -129,17 +130,20 @@ namespace {
                 return;
             }
 
-            updateFrame();
             drawControls();
             ImGui::Spacing();
+            if (manualDisable_) {
+                frame_.valid = false;
+            }
+            else {
+                updateFrame();
+            }
             drawSpectrum();
             ImGui::Spacing();
             drawWaterfall();
         }
 
         void updateFrame() {
-            frame_.valid = false;
-
             syncTrackedVfo();
             syncDisplayStyle();
 
@@ -149,8 +153,14 @@ namespace {
             const double focusCenterHz = centerHz + focusOffsetHz;
             const double visibleSpanHz = focusBandwidthHz * SPAN_MULTIPLIER;
             const double tapSpanHz = visibleSpanHz * BUFFER_WINDOW_MULTIPLIER;
+            const auto now = std::chrono::steady_clock::now();
 
             ensureTap(focusOffsetHz, tapSpanHz);
+            if ((now - lastSpectrumAt_) > std::chrono::milliseconds(1200) &&
+                (now - lastTapRecoveryAt_) > std::chrono::milliseconds(600)) {
+                recreateTap(focusOffsetHz, tapSpanHz);
+                lastTapRecoveryAt_ = now;
+            }
 
             std::lock_guard<std::mutex> lck(dataMtx_);
             captureCenterHz_ = focusCenterHz;
@@ -161,7 +171,8 @@ namespace {
 
             frame_.leftHz = focusCenterHz - (visibleSpanHz * 0.5);
             frame_.rightHz = focusCenterHz + (visibleSpanHz * 0.5);
-            const auto bufferedBins = buildDisplayBins(fftDb_, bufferedColumnCount_, calibrationOffsetDb_);
+            const float previousOffsetDb = calibrationOffsetDb_;
+            const auto bufferedBins = buildDisplayBins(fftDb_, bufferedColumnCount_, previousOffsetDb);
             frame_.bins = extractVisibleBins(bufferedBins);
             frame_.focusCenterHz = focusCenterHz;
             frame_.focusBandwidthHz = focusBandwidthHz;
@@ -172,7 +183,7 @@ namespace {
                 frame_.fftMaxDb = displayMaxDb_;
             }
             updateCalibrationOffset(frame_.leftHz, frame_.rightHz, frame_.bins);
-            if (std::abs(calibrationOffsetDb_) > 0.001f) {
+            if (std::abs(calibrationOffsetDb_ - previousOffsetDb) > 0.01f) {
                 frame_.bins = extractVisibleBins(buildDisplayBins(fftDb_, bufferedColumnCount_, calibrationOffsetDb_));
             }
             frame_.valid = true;
@@ -263,8 +274,8 @@ namespace {
             const double mainLeftHz = mainCenterHz - (mainSpanHz * 0.5);
             const double mainRightHz = mainCenterHz + (mainSpanHz * 0.5);
 
-            std::vector<float> diffs;
-            diffs.reserve(currentBins.size());
+            calibrationDiffs_.clear();
+            calibrationDiffs_.reserve(currentBins.size());
 
             for (int i = 0; i < static_cast<int>(currentBins.size()); ++i) {
                 const double binT = (static_cast<double>(i) + 0.5) / static_cast<double>(currentBins.size());
@@ -279,17 +290,17 @@ namespace {
                 const int x1 = std::clamp(x0 + 1, 0, mainWidth - 1);
                 const float frac = static_cast<float>(mainX - static_cast<double>(x0));
                 const float mainDb = (mainFft[x0] * (1.0f - frac)) + (mainFft[x1] * frac);
-                diffs.push_back(mainDb - currentBins[i]);
+                calibrationDiffs_.push_back(mainDb - currentBins[i]);
             }
 
             waterfall.releaseLatestFFT();
 
-            if (diffs.size() < 16) {
+            if (calibrationDiffs_.size() < 16) {
                 return;
             }
 
-            const auto mid = diffs.begin() + (diffs.size() / 2);
-            std::nth_element(diffs.begin(), mid, diffs.end());
+            const auto mid = calibrationDiffs_.begin() + (calibrationDiffs_.size() / 2);
+            std::nth_element(calibrationDiffs_.begin(), mid, calibrationDiffs_.end());
             const float medianDiff = std::clamp(*mid, -60.0f, 60.0f);
             calibrationOffsetDb_ = (calibrationOffsetDb_ * 0.85f) + (medianDiff * 0.15f);
         }
@@ -308,15 +319,29 @@ namespace {
             const bool needCreate = (spyglassVfo_ == nullptr);
             const bool spanChanged = std::abs(spanHz - tapSpanHz_) > std::max(10.0, tapSpanHz_ * 0.01);
 
-            if (needCreate || spanChanged) {
+            if (needCreate) {
                 recreateTap(focusOffsetHz, spanHz);
                 return;
+            }
+
+            if (spyglassVfo_ == nullptr) {
+                return;
+            }
+
+            if (spanChanged) {
+                spyglassVfo_->setBandwidthLimits(spanHz, spanHz, true);
+                spyglassVfo_->setSampleRate(spanHz, spanHz);
+                tapSpanHz_ = spanHz;
+                hopSize_ = std::max(1, static_cast<int>(std::round(spanHz / FFT_FRAME_RATE)));
+                resetProcessingState();
             }
 
             if (spyglassVfo_ != nullptr && std::abs(focusOffsetHz - tapOffsetHz_) > 1.0) {
                 spyglassVfo_->setOffset(focusOffsetHz);
                 tapOffsetHz_ = focusOffsetHz;
             }
+
+            hideTapVisuals();
         }
 
         void recreateTap(double focusOffsetHz, double spanHz) {
@@ -338,8 +363,6 @@ namespace {
             }
 
             spyglassVfo_->setColor(IM_COL32(0, 0, 0, 0));
-            spyglassVfo_->wtfVFO->lineVisible = false;
-            spyglassVfo_->wtfVFO->notchVisible = false;
             spyglassVfo_->wtfVFO->bandwidth = 1.0;
             spyglassVfo_->wtfVFO->minBandwidth = 1.0;
             spyglassVfo_->wtfVFO->maxBandwidth = 1.0;
@@ -347,6 +370,7 @@ namespace {
             spyglassVfo_->setBandwidthLimits(spanHz, spanHz, true);
             spyglassVfo_->setSampleRate(spanHz, spanHz);
             spyglassVfo_->setOffset(focusOffsetHz);
+            hideTapVisuals();
 
             tapSpanHz_ = spanHz;
             tapOffsetHz_ = focusOffsetHz;
@@ -379,6 +403,17 @@ namespace {
             tapSpanHz_ = 0.0;
             tapOffsetHz_ = 0.0;
             resetProcessingState();
+        }
+
+        void hideTapVisuals() {
+            if (spyglassVfo_ == nullptr || spyglassVfo_->wtfVFO == nullptr) {
+                return;
+            }
+
+            spyglassVfo_->wtfVFO->lineVisible = false;
+            spyglassVfo_->wtfVFO->notchVisible = false;
+            // Keep helper VFO center-referenced so Spy Glass follows retunes.
+            spyglassVfo_->wtfVFO->reference = ImGui::WaterfallVFO::REF_CENTER;
         }
 
         void resetProcessingState() {
@@ -580,6 +615,7 @@ namespace {
             }
 
             spectrumValid_ = true;
+            lastSpectrumAt_ = std::chrono::steady_clock::now();
 
             if (!freezeWaterfall_ && (++waterfallAppendCounter_ % WATERFALL_APPEND_EVERY) == 0) {
                 appendWaterfallRow(buildDisplayBins(fftDb_, bufferedColumnCount_, calibrationOffsetDb_));
@@ -630,21 +666,14 @@ namespace {
         void drawControls() {
             ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
 
-            if (!frame_.valid) {
-                int rows = visibleRows_;
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted("Waterfall History");
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderInt("##spy_glass_history_rows", &rows, 100, 200);
-                ImGui::Checkbox("Freeze Waterfall", &freezeWaterfall_);
-                ImGui::PopItemWidth();
-                ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.25f, 1.0f), "No independent Spy Glass FFT frame available yet.");
-                return;
+            if (frame_.valid) {
+                ImGui::Text("Focus bandwidth: %.0f kHz", frame_.focusBandwidthHz / 1e3);
+                ImGui::Text("Spy Glass span: %.0f kHz", (frame_.rightHz - frame_.leftHz) / 1e3);
             }
-
-            ImGui::Text("Focus bandwidth: %.0f kHz", frame_.focusBandwidthHz / 1e3);
-            ImGui::Text("Spy Glass span: %.0f kHz", (frame_.rightHz - frame_.leftHz) / 1e3);
+            else {
+                ImGui::TextUnformatted("Focus bandwidth: --");
+                ImGui::TextUnformatted("Spy Glass span: --");
+            }
 
             int rows = visibleRows_;
             ImGui::AlignTextToFramePadding();
@@ -656,14 +685,20 @@ namespace {
             }
 
             ImGui::Checkbox("Freeze Waterfall", &freezeWaterfall_);
+            const char* disableLabel = manualDisable_ ? "Enable" : "Disable";
+            const float disableWidth = ImGui::CalcTextSize(disableLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0f);
+            ImGui::SameLine(std::max(0.0f, ImGui::GetContentRegionAvail().x - disableWidth));
+            if (ImGui::Button(disableLabel)) {
+                manualDisable_ = !manualDisable_;
+                if (manualDisable_) {
+                    frame_.valid = false;
+                    destroyTap();
+                }
+            }
             ImGui::PopItemWidth();
         }
 
         void drawSpectrum() {
-            if (!frame_.valid) {
-                return;
-            }
-
             const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, SPECTRUM_HEIGHT);
             const ImVec2 origin = ImGui::GetCursorScreenPos();
             const ImVec2 end(origin.x + canvasSize.x, origin.y + canvasSize.y);
@@ -671,6 +706,12 @@ namespace {
 
             drawList->AddRectFilled(origin, end, IM_COL32(10, 14, 18, 255), 6.0f);
             drawList->AddRect(origin, end, IM_COL32(65, 78, 92, 255), 6.0f);
+
+            ImGui::InvisibleButton("##spy_glass-spectrum", canvasSize);
+
+            if (!frame_.valid) {
+                return;
+            }
 
             for (int i = 1; i < 4; ++i) {
                 const float y = origin.y + ((canvasSize.y / 4.0f) * static_cast<float>(i));
@@ -702,17 +743,12 @@ namespace {
             drawVerticalMarker(drawList, origin, end, leftMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
             drawVerticalMarker(drawList, origin, end, rightMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
 
-            ImGui::InvisibleButton("##spy_glass-spectrum", canvasSize);
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 tuneToMouse(origin, canvasSize.x);
             }
         }
 
         void drawWaterfall() {
-            if (!frame_.valid || rows_.empty() || historyCount_ <= 0) {
-                return;
-            }
-
             const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, WATERFALL_HEIGHT);
             const ImVec2 origin = ImGui::GetCursorScreenPos();
             const ImVec2 end(origin.x + canvasSize.x, origin.y + canvasSize.y);
@@ -720,6 +756,12 @@ namespace {
 
             drawList->AddRectFilled(origin, end, IM_COL32(8, 9, 14, 255), 6.0f);
             drawList->AddRect(origin, end, IM_COL32(65, 78, 92, 255), 6.0f);
+
+            ImGui::InvisibleButton("##spy_glass-waterfall", canvasSize);
+
+            if (!frame_.valid || rows_.empty() || historyCount_ <= 0) {
+                return;
+            }
 
             {
                 std::lock_guard<std::mutex> lck(dataMtx_);
@@ -736,7 +778,6 @@ namespace {
             drawVerticalMarker(drawList, origin, end, leftMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
             drawVerticalMarker(drawList, origin, end, rightMarkerT, IM_COL32(255, 90, 90, 255), 2.5f);
 
-            ImGui::InvisibleButton("##spy_glass-waterfall", canvasSize);
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 tuneToMouse(origin, canvasSize.x);
             }
@@ -807,6 +848,7 @@ namespace {
         float smoothingBeta_ = 0.85f;
         WindowMode windowMode_ = WindowMode::Nuttall;
         PlotFrame frame_;
+        bool manualDisable_ = false;
         std::string activeColorMapName_ = "Classic";
         VFOManager::VFO* spyglassVfo_ = nullptr;
         dsp::sink::Handler<dsp::complex_t> iqTap_;
@@ -814,6 +856,7 @@ namespace {
         std::vector<float> fftWindow_;
         std::vector<float> fftDb_;
         std::vector<float> smoothingBuf_;
+        std::vector<float> calibrationDiffs_;
         std::vector<std::vector<float>> rows_;
         std::vector<double> rowCenterHz_;
         std::vector<double> rowSpanHz_;
@@ -821,6 +864,8 @@ namespace {
         std::vector<ImU32> waterfallTexturePixels_;
         double captureCenterHz_ = 0.0;
         double captureSpanHz_ = 0.0;
+        std::chrono::steady_clock::time_point lastSpectrumAt_ = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point lastTapRecoveryAt_ = std::chrono::steady_clock::time_point::min();
         GLuint waterfallTextureId_ = 0;
         int waterfallTextureWidth_ = 0;
         int waterfallTextureHeight_ = 0;
@@ -835,7 +880,7 @@ SDRPP_MOD_INFO{
     /* Name:            */ "spy_glass",
     /* Description:     */ "Zoomed FFT/waterfall inspector for SDR++",
     /* Author:          */ "BlackDuke07",
-    /* Version:         */ 0, 3, 0,
+    /* Version:         */ 0, 3, 1,
     /* Max instances    */ 1
 };
 
